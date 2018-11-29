@@ -1,19 +1,47 @@
 package main
 
 import (
-	"github.com/labstack/echo"
-)
+	"fmt"
+	"log"
+	"net/http"
+	"time"
 
-const (
-	FACEBOOK_API = "https://graph.facebook.com/v2.6/me/messages?access_token=%s"
-	IMAGE        = "http://37.media.tumblr.com/e705e901302b5925ffb2bcf3cacb5bcd/tumblr_n6vxziSQD11slv6upo3_500.gif"
+	"github.com/paked/messenger"
 )
 
 func main() {
-	e := echo.New()
 
-	e.POST("/webhook", MessagesEndpoint)
-	e.GET("/webhook", VerificationEndpoint)
+	// Create a new messenger client
+	client := messenger.New(messenger.Options{
+		Verify:      *verify,
+		AppSecret:   *appSecret,
+		VerifyToken: *verifyToken,
+		Token:       *pageToken,
+	})
 
-	e.Logger.Fatal(e.Start(":9999"))
+	// Setup a handler to be triggered when a message is received
+	client.HandleMessage(func(m messenger.Message, r *messenger.Response) {
+		fmt.Printf("%v (Sent, %v)\n", m.Text, m.Time.Format(time.UnixDate))
+
+		p, err := client.ProfileByID(m.Sender.ID)
+		if err != nil {
+			fmt.Println("Something went wrong!", err)
+		}
+
+		r.Text(fmt.Sprintf("Hello, %v!", p.FirstName), messenger.ResponseType)
+	})
+
+	// Setup a handler to be triggered when a message is delivered
+	client.HandleDelivery(func(d messenger.Delivery, r *messenger.Response) {
+		fmt.Println("Delivered at:", d.Watermark().Format(time.UnixDate))
+	})
+
+	// Setup a handler to be triggered when a message is read
+	client.HandleRead(func(m messenger.Read, r *messenger.Response) {
+		fmt.Println("Read at:", m.Watermark().Format(time.UnixDate))
+	})
+
+	addr := fmt.Sprintf("%s:%d", *host, *port)
+	log.Println("Serving messenger bot on", addr)
+	log.Fatal(http.ListenAndServe(addr, client.Handler()))
 }
