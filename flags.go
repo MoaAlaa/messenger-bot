@@ -7,6 +7,7 @@ import (
 )
 
 var (
+	serverURL   = flag.String("serverURL", "", "The server (webview) URL, must be https (required)")
 	verifyToken = flag.String("verify-token", "alaa-testing", "The token used to verify facebook (required)")
 	verify      = flag.Bool("should-verify", true, "Whether or not the app should verify itself")
 	pageToken   = flag.String("page-token", "EAAEQ9Pux1zsBAGUOXueXQ97Dt5x04C7AGD0p38VjAI5BZA4ZCfRLoQDhdgUJm1Ey9yz5GClGPFXWrdajPOGC4yQK6HMERjBqy4fgZAoDjtt9z1k1o20gagusErYus3ToczerpZAUFBSosN9ByLLJoWUGeA2zXikvmUtMC4mhiQZDZD", "The token that is used to verify the page on facebook (required)")
@@ -17,12 +18,10 @@ var (
 
 func init() {
 	flag.Parse()
-	println(*verifyToken)
-	println(*appSecret)
-	println(*pageToken)
+
 	if *verifyToken == "" || *appSecret == "" || *pageToken == "" {
 		fmt.Println("missing arguments")
-		fmt.Println()
+
 		flag.Usage()
 
 		os.Exit(-1)
