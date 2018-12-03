@@ -21,16 +21,19 @@ func main() {
 		Token:       *pageToken,
 	})
 
-	// err := client.EnableChatExtension(messenger.HomeURL{
-	// 	URL:                *serverURL,
-	// 	WebviewHeightRatio: "tall",
-	// 	WebviewShareButton: "show",
-	// 	InTest:             true,
-	// })
+	// HandleMessage Should Be The Last Function
 
-	// if err != nil {
-	// 	fmt.Println("Failed to EnableChatExtension, err=", err)
-	// }
+	client.GreetingSetting("Hello Fucker")
+
+	// Setup a handler to be triggered when a message is delivered
+	client.HandleDelivery(func(d messenger.Delivery, r *messenger.Response) {
+		fmt.Println("Delivered at:", d.Watermark().Format(time.UnixDate))
+	})
+
+	// Setup a handler to be triggered when a message is read
+	client.HandleRead(func(m messenger.Read, r *messenger.Response) {
+		fmt.Println("Read at:", m.Watermark().Format(time.UnixDate))
+	})
 
 	// Setup a handler to be triggered when a message is received
 	client.HandleMessage(func(m messenger.Message, r *messenger.Response) {
@@ -43,52 +46,30 @@ func main() {
 
 		mes := strings.ToLower(m.Text)
 
-		var con []Country
-
-		// res, err := http.Get(fmt.Sprintf("https://restcountries.eu/rest/v2/name/%s?fullText=true", mes))
-		res, err := http.Get(fmt.Sprintf("https://restcountries.eu/rest/v2/name/%s", mes))
-
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-
-		defer res.Body.Close()
-
-		body, errr := ioutil.ReadAll(res.Body)
-
-		if errr != nil {
-			fmt.Println(errr.Error())
-		}
-
-		json.Unmarshal(body, &con)
-
-		if len(con) == 0 {
-			fmt.Println("Error")
-			help(p, r)
+		if mes == "help" {
+			fmt.Println("Help")
+			help(p, r, "We Take The Name Of The Country And Then Search For It's Information Just Type The Country Name Or Part Of It.")
 		} else {
-			var countryData = []messenger.StructuredMessageButton{}
+			var con []Country
 
-			for _, c := range con {
+			getCountries(mes, &con)
 
-				u := fmt.Sprintf("http://country.io/%s/", strings.ToLower(strings.Replace(c.NativeName, " ", "-", -1)))
-				countryData = append(countryData, messenger.StructuredMessageButton{
-					Type:  "web_url",
-					URL:   u,
-					Title: c.NativeName,
-				})
+			fmt.Println(len(con))
+
+			if len(con) == 0 {
+
+				fmt.Println("Not Data Found")
+				help(p, r, "Error Not Data Found. Here is what I understand Fucker, To Can I Search By.")
+
+			} else {
+				var countryData = []messenger.StructuredMessageElement{}
+
+				getCountryMessageData(con, &countryData)
+
+				countryResponseTemplate(r, countryData)
 			}
-			countryButton(r, countryData)
+
 		}
-	})
-
-	// Setup a handler to be triggered when a message is delivered
-	client.HandleDelivery(func(d messenger.Delivery, r *messenger.Response) {
-		fmt.Println("Delivered at:", d.Watermark().Format(time.UnixDate))
-	})
-
-	// Setup a handler to be triggered when a message is read
-	client.HandleRead(func(m messenger.Read, r *messenger.Response) {
-		fmt.Println("Read at:", m.Watermark().Format(time.UnixDate))
 	})
 
 	addr := fmt.Sprintf("%s:%d", *host, *port)
@@ -97,18 +78,64 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr, client.Handler()))
 }
 
+// getCountries Get The Countries From The Api By The Specified Name Or Part Of The Name
+func getCountries(mes string, con *[]Country) {
+
+	res, err := http.Get(fmt.Sprintf("https://restcountries.eu/rest/v2/name/%s?fields=name;capital;flag;region;nativeName", mes))
+
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+
+	defer res.Body.Close()
+
+	body, errr := ioutil.ReadAll(res.Body)
+
+	if errr != nil {
+		fmt.Println(errr.Error())
+	}
+
+	json.Unmarshal(body, &con)
+}
+
+// getCountryMessageData Send The Countries Names And Data With Buttons
+func getCountryMessageData(con []Country, cd *[]messenger.StructuredMessageElement) {
+	for _, c := range con {
+
+		u := fmt.Sprintf("http://google.com/%s/", strings.ToLower(strings.Replace(c.Name, " ", "-", -1)))
+		*cd = append(*cd, messenger.StructuredMessageElement{
+			Title:    c.NativeName,
+			ImageURL: c.Flag,
+			ItemURL:  u,
+			Subtitle: c.Name,
+		})
+	}
+}
+
 // countryButtons will present to the user a button that can be used to
 func countryButton(r *messenger.Response, countryData []messenger.StructuredMessageButton) error {
-	fmt.Println("Button Send")
+	fmt.Println("Button Sent")
 	buttons := &countryData
 	return r.ButtonTemplate("Go And See :)", buttons, messenger.ResponseType)
 }
 
+// countryResponseTemplate will present to the user a Template / button that can be used to
+func countryResponseTemplate(r *messenger.Response, countryData []messenger.StructuredMessageElement) error {
+	fmt.Println("Template Sent")
+
+	fmt.Printf("%+v", countryData)
+
+	t := &countryData
+
+	return r.GenericTemplate(t, messenger.ResponseType)
+}
+
 // help displays possibles actions to the user.
-func help(p messenger.Profile, r *messenger.Response) error {
+func help(p messenger.Profile, r *messenger.Response, m string) error {
 	text := fmt.Sprintf(
-		"%s, Error Not Data Found. Here is what I understand Fucker, To Can I Search By.",
+		"%s, %s",
 		p.FirstName,
+		m,
 	)
 
 	replies := []messenger.QuickReply{
